@@ -1,0 +1,8 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // URL AGORA SAIU DAQUI! (vai no prisma.config.ts)
+}
