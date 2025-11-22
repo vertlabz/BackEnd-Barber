@@ -1,8 +1,117 @@
+// Reference image (uploaded by user): /mnt/data/84a4d3bf-c78f-4a9f-9928-783f03d4785f.png
+// Prisma v7 format: datasource URL must be configured in prisma.config.ts or via env
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
-  // URL AGORA SAIU DAQUI! (vai no prisma.config.ts)
+  // url is configured in prisma.config.ts (or via env via that config)
+}
+
+// --- Enums
+
+enum AppointmentStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  MISSED
+}
+
+// --- Models
+
+model User {
+  id                    String      @id @default(uuid())
+  name                  String
+  email                 String      @unique
+  password              String
+  phone                 String?
+  isProvider            Boolean     @default(false)
+  avatarUrl             String?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  // relations
+  services              Service[]
+  appointmentsAsCustomer Appointment[] @relation("customerAppointments")
+  appointmentsAsProvider Appointment[] @relation("providerAppointments")
+
+  // newly added relation fields to satisfy Prisma v7 relation requirements
+  providerAvailabilities ProviderAvailability[]
+  providerBlocks        ProviderBlock[]
+  tokens                Token[]
+}
+
+model Service {
+  id         String   @id @default(uuid())
+  providerId String
+  provider   User     @relation(fields: [providerId], references: [id])
+  name       String
+  duration   Int      // minutes
+  price      Float
+  createdAt  DateTime @default(now())
+
+  appointments Appointment[]
+
+  @@index([providerId])
+}
+
+model Appointment {
+  id         String            @id @default(uuid())
+  date       DateTime
+  status     AppointmentStatus @default(SCHEDULED)
+  customerId String
+  providerId String
+  serviceId  String?
+  notes      String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  customer   User     @relation("customerAppointments", fields: [customerId], references: [id])
+  provider   User     @relation("providerAppointments", fields: [providerId], references: [id])
+  service    Service? @relation(fields: [serviceId], references: [id])
+
+  @@index([providerId, date])
+  @@index([customerId])
+}
+
+model ProviderAvailability {
+  id         String   @id @default(uuid())
+  providerId String
+  provider   User     @relation(fields: [providerId], references: [id])
+  weekday    Int      // 0 = Sunday .. 6 = Saturday
+  startTime  String   // "09:00" (HH:MM)
+  endTime    String   // "17:30"
+  createdAt  DateTime @default(now())
+
+  @@unique([providerId, weekday, startTime, endTime])
+  @@index([providerId, weekday])
+}
+
+// Optional: table to store calendar exceptions (vacations/blocked periods)
+model ProviderBlock {
+  id         String   @id @default(uuid())
+  providerId String
+  provider   User     @relation(fields: [providerId], references: [id])
+  startAt    DateTime
+  endAt      DateTime
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@index([providerId, startAt, endAt])
+}
+
+// Useful for password reset tokens or email verification
+model Token {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String   // e.g. "RESET_PASSWORD", "VERIFY_EMAIL"
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, type])
 }
